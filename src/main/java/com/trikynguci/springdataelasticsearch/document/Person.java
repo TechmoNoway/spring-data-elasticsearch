@@ -1,5 +1,6 @@
 package com.trikynguci.springdataelasticsearch.document;
 
+import com.trikynguci.springdataelasticsearch.helper.Indices;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,7 +15,7 @@ import org.springframework.data.elasticsearch.annotations.Setting;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Document(indexName = "person")
+@Document(indexName = Indices.PERSON_INDEX)
 @Setting(settingPath = "static/es-settings.json")
 public class Person {
 
