@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: spring-data-elasticsearch
+  elasticsearch:
+    uris: http://localhost:9200
+
+elasticsearch:
+  url: localhost:9200
+
+
+
+
