@@ -3,6 +3,7 @@ package com.trikynguci.springdataelasticsearch.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.mapping.TypeMapping;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
+import co.elastic.clients.elasticsearch.indices.DeleteIndexRequest;
 import co.elastic.clients.elasticsearch.indices.IndexSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trikynguci.springdataelasticsearch.helper.Indices;
@@ -15,12 +16,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
+
 
 @Service
 public class IndexService {
     private static final Logger LOG = LoggerFactory.getLogger(IndexService.class);
-    private final List<String> INDICES_TO_CREATE = List.of(Indices.VEHICLE_INDEX);
+    private static final List<String> INDICES = List.of(Indices.VEHICLE_INDEX);
     private final ElasticsearchClient client;
 
     @Autowired
@@ -30,40 +31,63 @@ public class IndexService {
 
     @PostConstruct
     public void tryToCreateIndices(){
+        recreateIndices(false);
+    }
+
+    public void recreateIndices(final boolean deleteExisting) {
         final String settings = Util.loadAsString("static/es-settings.json");
 
-        for (final String indexName : INDICES_TO_CREATE) {
+        if (settings == null) {
+            LOG.error("Failed to load index settings");
+            return;
+        }
+
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        for (final String indexName : INDICES) {
             try {
-                boolean indexExists = client.indices()
+                final boolean indexExists = client.indices()
                         .exists(b -> b.index(indexName))
                         .value();
                 if (indexExists) {
-                    continue;
+                    if (!deleteExisting) {
+                        continue;
+                    }
+                    client.indices().delete(b -> b.index(indexName));
                 }
 
-                final String mappings = Util.loadAsString("static/mappings/" + indexName + ".json");
-                if (settings == null || mappings == null) {
-                    LOG.error("Filed to create index with name '{}'", indexName);
-                    continue;
-                }
-
-                ObjectMapper objectMapper = new ObjectMapper();
                 IndexSettings settingsObj = objectMapper.readValue(settings, IndexSettings.class);
-                TypeMapping mappingsObj = objectMapper.readValue(mappings, TypeMapping.class);
 
-                final CreateIndexRequest createIndexRequest = new CreateIndexRequest.Builder()
+                final String mappings = loadMappings(indexName);
+                TypeMapping mappingsObj = null;
+                if (mappings != null) {
+                    mappingsObj = objectMapper.readValue(mappings, TypeMapping.class);
+                }
+
+                CreateIndexRequest.Builder builder = new CreateIndexRequest.Builder()
                         .index(indexName)
-                        .settings(settingsObj)
-                        .mappings(mappingsObj)
-                        .build();
+                        .settings(settingsObj);
 
-                client.indices().create(createIndexRequest);
+                if (mappingsObj != null) {
+                    builder.mappings(mappingsObj);
+                }
+
+                client.indices().create(builder.build());
             } catch (final Exception e) {
                 LOG.error(e.getMessage(), e);
             }
         }
     }
 
+    private String loadMappings(String indexName) {
+        final String mappings = Util.loadAsString("static/mappings/" + indexName + ".json");
+        if (mappings == null) {
+            LOG.error("Failed to load mappings for index with name '{}'", indexName);
+            return null;
+        }
+
+        return mappings;
+    }
 
 
 }
